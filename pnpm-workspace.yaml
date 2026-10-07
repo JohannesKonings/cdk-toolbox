@@ -7,10 +7,8 @@ packages:
   - .
   - apps/*
   - packages/*
-
 allowBuilds:
   esbuild: true
-
 catalogMode: prefer
 catalog:
   "@types/node": ^24
@@ -19,11 +17,9 @@ catalog:
   vite-plus: 1.0.0
   vitest: 5.0.3
   zod: ^3.25.76
-
 overrides:
   vite@*: "catalog:"
   vitest@*: "catalog:"
-
 peerDependencyRules:
   allowAny:
     - vite
