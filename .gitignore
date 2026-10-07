@@ -1,0 +1,8 @@
+node_modules
+dist
+.output
+.nitro
+cdk.out
+test-results
+*.log
+.DS_Store

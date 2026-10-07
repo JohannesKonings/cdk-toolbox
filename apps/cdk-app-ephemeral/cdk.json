@@ -1,0 +1,7 @@
+{
+  "app": "tsx bin/app.ts",
+  "requireApproval": "never",
+  "context": {
+    "@aws-cdk/core:target-partitions": ["aws", "aws-cn"]
+  }
+}

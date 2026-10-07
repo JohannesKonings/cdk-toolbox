@@ -1,0 +1,91 @@
+name: Destroy Ephemeral Stack On Merge
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+    paths:
+      - "apps/cdk-app-ephemeral/**"
+      - "packages/cdk-constructs/**"
+      - "lib/**"
+      - "scripts/resolve-stage.ts"
+      - ".github/workflows/destroy-ephemeral-on-merge.yml"
+
+concurrency:
+  group: destroy-ephemeral-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  destroy-ephemeral:
+    if: >-
+      ${{ github.event.pull_request.merged == true &&
+      !(
+        startsWith(github.event.pull_request.head.ref, 'renovate/') ||
+        startsWith(github.event.pull_request.head.ref, 'dependabot/') ||
+        github.event.pull_request.user.login == 'renovate[bot]' ||
+        github.event.pull_request.user.login == 'dependabot[bot]'
+      ) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          cache: true
+          node-version-file: package.json
+          run-install: |
+            - args: ['--frozen-lockfile']
+
+      - name: Resolve stage name
+        id: resolve-stage
+        env:
+          STAGE_SOURCE: ${{ github.event.pull_request.head.ref }}
+        run: |
+          STAGE="$(node --import tsx scripts/resolve-stage.ts --stage "${STAGE_SOURCE}" --lifecycle ephemeral)"
+          echo "stage=${STAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        id: aws-credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+
+      - name: Destroy ephemeral stack
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          APP_STAGE: ${{ steps.resolve-stage.outputs.stage }}
+          CDK_DEFAULT_ACCOUNT: ${{ steps.aws-credentials.outputs.aws-account-id }}
+        run: |
+          STACK_NAME="CdkToolboxEphemeralStack-${APP_STAGE}"
+          echo "Destroying stack: ${STACK_NAME}"
+
+          set +e
+          DESTROY_OUTPUT="$(vp -C apps/cdk-app-ephemeral exec cdk destroy "${STACK_NAME}" --force 2>&1)"
+          DESTROY_EXIT_CODE=$?
+          set -e
+
+          echo "${DESTROY_OUTPUT}"
+
+          if [ "${DESTROY_EXIT_CODE}" -eq 0 ]; then
+            exit 0
+          fi
+
+          case "${DESTROY_OUTPUT}" in
+            *"No stacks match the name"*|*"does not exist"*)
+              echo "Stack already missing, continuing: ${STACK_NAME}"
+              exit 0
+              ;;
+          esac
+
+          echo "Failed to destroy stack: ${STACK_NAME}"
+          exit "${DESTROY_EXIT_CODE}"

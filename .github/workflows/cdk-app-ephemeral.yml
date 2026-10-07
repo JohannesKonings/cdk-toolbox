@@ -1,0 +1,84 @@
+name: CDK App Ephemeral
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "apps/cdk-app-ephemeral/**"
+      - "packages/cdk-constructs/**"
+      - "lib/**"
+      - "scripts/resolve-stage.ts"
+      - ".github/workflows/cdk-app-ephemeral.yml"
+      - ".github/workflows/_reusable-cdk-deploy.yml"
+
+concurrency:
+  group: cdk-app-ephemeral-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          cache: true
+          node-version-file: package.json
+          run-install: |
+            - args: ['--frozen-lockfile']
+
+      - name: Run checks
+        run: vp check apps/cdk-app-ephemeral
+
+      - name: Run tests
+        run: mkdir -p test-results && vp -C apps/cdk-app-ephemeral test -- --reporter=default --reporter=junit --outputFile=test-results/vitest.junit.xml
+
+      - name: Publish test report
+        if: always() && hashFiles('test-results/vitest.junit.xml') != ''
+        uses: dorny/test-reporter@v3
+        with:
+          name: CDK App Ephemeral Vitest
+          path: test-results/vitest.junit.xml
+          reporter: java-junit
+
+  deploy-ephemeral:
+    needs: validate
+    if: >-
+      ${{ github.event.pull_request.head.repo.full_name == github.repository &&
+      !(
+        startsWith(github.event.pull_request.head.ref, 'renovate/') ||
+        startsWith(github.event.pull_request.head.ref, 'dependabot/') ||
+        github.event.pull_request.user.login == 'renovate[bot]' ||
+        github.event.pull_request.user.login == 'dependabot[bot]'
+      ) }}
+    uses: ./.github/workflows/_reusable-cdk-deploy.yml
+    with:
+      cdk_package: apps/cdk-app-ephemeral
+      stage_source: ${{ github.event.pull_request.head.ref }}
+      lifecycle: ephemeral
+      stack_prefix: CdkToolboxEphemeralStack
+    secrets:
+      aws_role_to_assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    permissions:
+      contents: read
+      id-token: write
+
+  skip-fork-deploy:
+    name: Skip deploy for fork PR
+    needs: validate
+    if: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Explain fork behavior
+        run: echo "Skipping ephemeral stack deploy for fork pull requests. Validation checks still run."

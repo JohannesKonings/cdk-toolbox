@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+import { Aspects, Tags } from "aws-cdk-lib";
+import { AwsSolutionsChecks, ServerlessChecks } from "cdk-nag";
+import {
+  ACCOUNT_RESOURCE_SCOPE_TAG_VALUE,
+  RESOURCE_SCOPE_TAG_KEY,
+} from "../../../lib/resource-tags.ts";
+import { GLOBAL_SERVICES_REGION } from "../../../lib/workload-region.ts";
+import { AccountSetupStack } from "../lib/account-setup-stack.ts";
+import { resolveAccountSetupEnv } from "../lib/app-config.ts";
+import { createAccountSetupApp } from "../lib/cdk-app.ts";
+
+const app = createAccountSetupApp();
+Tags.of(app).add(RESOURCE_SCOPE_TAG_KEY, ACCOUNT_RESOURCE_SCOPE_TAG_VALUE);
+const accountSetupEnv = resolveAccountSetupEnv();
+
+new AccountSetupStack(app, "AccountSetupStack", {
+  env: {
+    account: accountSetupEnv.AWS_ACCOUNT_ID,
+    region: GLOBAL_SERVICES_REGION,
+  },
+});
+
+Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+Aspects.of(app).add(new ServerlessChecks({ verbose: true }));

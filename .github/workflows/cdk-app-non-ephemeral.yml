@@ -1,0 +1,63 @@
+name: CDK App Non-Ephemeral
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/cdk-app-non-ephemeral/**"
+      - "packages/cdk-constructs/**"
+      - "lib/**"
+      - ".github/workflows/cdk-app-non-ephemeral.yml"
+      - ".github/workflows/_reusable-cdk-deploy.yml"
+
+concurrency:
+  group: cdk-app-non-ephemeral-main
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          cache: true
+          node-version-file: package.json
+          run-install: |
+            - args: ['--frozen-lockfile']
+
+      - name: Run checks
+        run: vp check apps/cdk-app-non-ephemeral
+
+      - name: Run tests
+        run: mkdir -p test-results && vp -C apps/cdk-app-non-ephemeral test -- --reporter=default --reporter=junit --outputFile=test-results/vitest.junit.xml
+
+      - name: Publish test report
+        if: always() && hashFiles('test-results/vitest.junit.xml') != ''
+        uses: dorny/test-reporter@v3
+        with:
+          name: CDK App Non-Ephemeral Vitest
+          path: test-results/vitest.junit.xml
+          reporter: java-junit
+
+  deploy-non-ephemeral:
+    needs: validate
+    uses: ./.github/workflows/_reusable-cdk-deploy.yml
+    with:
+      cdk_package: apps/cdk-app-non-ephemeral
+      stage_source: main
+      lifecycle: permanent
+      stack_prefix: CdkToolboxNonEphemeralStack
+    secrets:
+      aws_role_to_assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+    permissions:
+      contents: read
+      id-token: write

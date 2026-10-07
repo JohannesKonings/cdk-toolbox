@@ -1,0 +1,77 @@
+name: Reusable CDK Deploy
+
+on:
+  workflow_call:
+    inputs:
+      cdk_package:
+        required: true
+        type: string
+      stage_source:
+        required: true
+        type: string
+      lifecycle:
+        required: true
+        type: string
+      stack_prefix:
+        required: true
+        type: string
+      aws_region:
+        required: false
+        default: us-east-1
+        type: string
+      github_environment:
+        required: false
+        default: ""
+        type: string
+    secrets:
+      aws_role_to_assume:
+        required: true
+    outputs:
+      stage:
+        description: Resolved stage name
+        value: ${{ jobs.deploy.outputs.stage }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github_environment }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      stage: ${{ steps.resolve-stage.outputs.stage }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@v1.21.1
+        with:
+          cache: true
+          node-version-file: package.json
+          run-install: |
+            - args: ['--frozen-lockfile']
+
+      - name: Resolve stage name
+        id: resolve-stage
+        env:
+          STAGE_SOURCE: ${{ inputs.stage_source }}
+          STAGE_LIFECYCLE: ${{ inputs.lifecycle }}
+        run: |
+          STAGE="$(node --import tsx scripts/resolve-stage.ts --stage "${STAGE_SOURCE}" --lifecycle "${STAGE_LIFECYCLE}")"
+          echo "stage=${STAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        id: aws-credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.aws_role_to_assume }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Deploy stack
+        env:
+          APP_STAGE: ${{ steps.resolve-stage.outputs.stage }}
+          STACK_PREFIX: ${{ inputs.stack_prefix }}
+          CDK_DEFAULT_ACCOUNT: ${{ steps.aws-credentials.outputs.aws-account-id }}
+        run: vp -C "${{ inputs.cdk_package }}" exec cdk deploy "${STACK_PREFIX}-${APP_STAGE}" --require-approval never

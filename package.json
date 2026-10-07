@@ -1,0 +1,38 @@
+{
+  "name": "cdk-toolbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r test && vp run -r build",
+    "prepare": "vp config",
+    "cdk:account": "vp -C apps/cdk-account-setup exec cdk",
+    "cdk:ephemeral": "vp -C apps/cdk-app-ephemeral exec cdk",
+    "cdk:non-ephemeral": "vp -C apps/cdk-app-non-ephemeral exec cdk"
+  },
+  "devDependencies": {
+    "@jaykingson/vite-plus-base": "0.0.4",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "^18.5.0",
+    "tsx": "^4.23.0",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.9.1",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^24.0.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

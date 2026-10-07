@@ -1,0 +1,23 @@
+{
+  "name": "@cdk-toolbox/cdk-app-ephemeral",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --all"
+  },
+  "dependencies": {
+    "@cdk-toolbox/cdk-constructs": "workspace:*"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1144.0",
+    "aws-cdk-lib": "2.272.0",
+    "cdk-nag": "^2.38.2",
+    "constructs": "^10.8.1",
+    "tsx": "^4.23.0",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}
